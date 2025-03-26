@@ -22,8 +22,8 @@ settings = {
             "parameters": {"storage_dir": "agent_storage/DreamTeam109Agent"},
         },
         {
-            "class": "agents.template_agent.template_agent.TemplateAgent",
-            "parameters": {"storage_dir": "agent_storage/TemplateAgent"},
+            "class": "agents.andreea_agent.andreea_agent.VeryCoolAgent",
+            "parameters": {"storage_dir": "agent_storage/VeryCoolAgent"},
         },
     ],
     "profiles": ["domains/domain00/profileA.json", "domains/domain00/profileB.json"],
