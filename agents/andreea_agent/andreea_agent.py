@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 from random import randint
 import random
@@ -52,9 +53,12 @@ class VeryCoolAgent(DefaultParty):
 
         self.last_received_bid: Bid = None
         self.opponent_model: OpponentModel = None
-
+        self._reservation_utility = 0
         self.strategy = "boulware"
         self.opponent_concessions = dict()
+
+        self._best_bid = None
+        self._best_bid_num = None
 
         self.logger.log(logging.INFO, "party is initialized")
 
@@ -86,6 +90,10 @@ class VeryCoolAgent(DefaultParty):
                 data.getProfile().getURI(), self.getReporter()
             )
             self.profile = profile_connection.getProfile()
+
+            if self.profile.getReservationBid():
+                self._reservation_utility = float(self.profile.getUtility(self.profile.getReservationBid()))
+
             self.domain = self.profile.getDomain()
             profile_connection.close()
 
@@ -220,14 +228,32 @@ class VeryCoolAgent(DefaultParty):
     ###########################################################################################
 
     def accept_condition(self, bid: Bid) -> bool:
+        
         if bid is None:
             return False
-
+        
         # progress of the negotiation session between 0 and 1 (1 is deadline)
         progress = self.progress.get(time() * 1000)
+         
+        utility = float(self.profile.getUtility(bid))
+        utility_opponent = float(self.opponent_model.get_predicted_utility(bid))
+        social_welfare = utility + utility_opponent
 
-        utility_threshold = 0.9 if self.strategy == "boulware" else 0.8 if self.strategy == "linear" else 0.7
-        return self.profile.getUtility(bid) >= utility_threshold or progress > 0.99
+        if progress < 0.8:
+            if self._best_bid:
+                if social_welfare > self._best_bid:
+                    self._best_bid = social_welfare
+                    self._best_bid_num = len(self.opponent_model.offers) + 1
+            else:
+                self._best_bid = social_welfare
+        
+        if progress > 0.99 and utility > self._reservation_utility:
+            return True
+        elif progress > 0.8:
+            if utility > self._reservation_utility and social_welfare * (self._best_bid - self._reservation_utility) * (progress - 0.8):
+                return True
+
+        return False
 
     def find_bid(self) -> Bid:
         all_bids = AllBidsList(self.domain)
