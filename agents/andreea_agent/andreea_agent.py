@@ -1,7 +1,9 @@
 from decimal import Decimal
 import logging
+import math
 from random import randint
 import random
+import statistics
 from time import time
 from typing import cast
 import json
@@ -56,6 +58,7 @@ class VeryCoolAgent(DefaultParty):
         self._reservation_utility = 0
         self.strategy = "boulware"
         self.opponent_concessions = dict()
+        self.previous_utils_oponent_offered = []
 
         self._best_bid = None
         self._best_bid_num = None
@@ -173,6 +176,7 @@ class VeryCoolAgent(DefaultParty):
             self.opponent_model.update(bid)
             # set bid as last received
             self.last_received_bid = bid
+            self.previous_utils_oponent_offered.append(float(self.opponent_model.get_predicted_utility(bid)))
             self.track_concessions(bid)  # Track opponent's concession behavior
             self.adjust_strategy()  # Adjust negotiation strategy based on progress
 
@@ -199,7 +203,7 @@ class VeryCoolAgent(DefaultParty):
         to perform and send this action to the opponent.
         """
         # check if the last received offer is good enough
-        if self.accept_condition(self.last_received_bid):
+        if self.accept_condition2(self.last_received_bid):
             # if so, accept the offer
             action = Accept(self.me, self.last_received_bid)
         else:
@@ -254,6 +258,28 @@ class VeryCoolAgent(DefaultParty):
                 return True
 
         return False
+    
+    def accept_condition2(self, bid: Bid) -> bool:
+        
+        if bid is None:
+            return False
+        
+        # progress of the negotiation session between 0 and 1 (1 is deadline)
+        progress = self.progress.get(time() * 1000)
+         
+        utility = float(self.profile.getUtility(bid))
+        utility_opponent = float(self.opponent_model.get_predicted_utility(bid))
+
+        a = max(self.previous_utils_oponent_offered)
+
+        if progress > 0.8 and (self.AC_next(a, utility_opponent, utility) or (progress > 0.99 and utility_opponent >= a)):
+            return True
+
+        return False
+    
+    def AC_next(self, utility_opponent, utility) -> bool:
+        return utility_opponent >= utility
+
 
     def find_bid(self) -> Bid:
         all_bids = AllBidsList(self.domain)
