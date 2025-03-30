@@ -54,8 +54,7 @@ class VeryCoolAgent(DefaultParty):
         self.opponent_model: OpponentModel = None
 
         self.strategy = "boulware"
-        self.opponent_concessions = []
-        self.historical_concessions = self.load_data()
+        self.opponent_concessions = dict()
 
         self.logger.log(logging.INFO, "party is initialized")
 
@@ -79,6 +78,8 @@ class VeryCoolAgent(DefaultParty):
 
             self.parameters = self.settings.getParameters()
             self.storage_dir = self.parameters.get("storage_dir")
+
+            self.opponent_concessions = self.load_data()
 
             # the profile contains the preferences of the agent over the domain
             profile_connection = ProfileConnectionFactory.create(
@@ -168,11 +169,13 @@ class VeryCoolAgent(DefaultParty):
             self.adjust_strategy()  # Adjust negotiation strategy based on progress
 
     def track_concessions(self, bid: Bid):
-        utility = self.profile.getUtility(bid)
-        if self.opponent_concessions and utility < self.opponent_concessions[-1]:
-            self.opponent_concessions.append(utility)
-        elif not self.opponent_concessions:
-            self.opponent_concessions.append(utility)
+        utility = float(self.profile.getUtility(bid))
+
+        if self.other in self.opponent_concessions:
+            if utility < self.opponent_concessions[self.other][-1]:
+                self.opponent_concessions[self.other].append(utility)
+        else:
+            self.opponent_concessions[self.other] = [utility]
 
     def adjust_strategy(self):
         progress = self.progress.get(time() * 1000)
@@ -200,17 +203,17 @@ class VeryCoolAgent(DefaultParty):
         self.send_action(action)
 
     def save_data(self):
-        data = {"historical_concessions": [float(c) for c in self.opponent_concessions]}
-        with open("data.json", "w") as f:
+        data = {"historical_concessions": self.opponent_concessions}
+        with open(f"{self.storage_dir}/data.md", "w") as f:
             json.dump(data, f)
 
     def load_data(self):
         try:
-            with open("data.json", "r") as f:
+            with open(f"{self.storage_dir}/data.md", "r") as f:
                 data = json.load(f)
-                return data.get("historical_concessions", [])
+                return data.get("historical_concessions", dict())
         except (FileNotFoundError, json.JSONDecodeError):
-            return []
+            return dict()
 
     ###########################################################################################
     ################################## Example methods below ##################################
