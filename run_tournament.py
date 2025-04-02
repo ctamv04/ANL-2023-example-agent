@@ -22,8 +22,8 @@ tournament_settings = {
             "parameters": {"storage_dir": "agent_storage/TemplateAgent"},
         },
         {
-            "class": "agents.andreea_agent.andreea_agent.VeryCoolAgent",
-            "parameters": {"storage_dir": "agent_storage/VeryCoolAgent"},
+            "class": "agents.andreea_agent.andreea_agent.VeryCoolAgent2",
+            "parameters": {"storage_dir": "agent_storage/VeryCoolAgent2"},
         },
         {
             "class": "agents.boulware_agent.boulware_agent.BoulwareAgent",
