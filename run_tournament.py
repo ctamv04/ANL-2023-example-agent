@@ -17,35 +17,43 @@ if not RESULTS_DIR.exists():
 #   You need to specify a time deadline (is milliseconds (ms)) we are allowed to negotiate before we end without agreement.
 tournament_settings = {
     "agents": [
-        {
-            "class": "agents.template_agent.template_agent.TemplateAgent",
-            "parameters": {"storage_dir": "agent_storage/TemplateAgent"},
-        },
+        # {
+        #     "class": "agents.template_agent.template_agent.TemplateAgent",
+        #     "parameters": {"storage_dir": "agent_storage/TemplateAgent"},
+        # },
         {
             "class": "agents.andreea_agent.andreea_agent.VeryCoolAgent",
             "parameters": {"storage_dir": "agent_storage/VeryCoolAgent"},
         },
         {
-            "class": "agents.boulware_agent.boulware_agent.BoulwareAgent",
+            "class": "agents.andreea_agent_v2.andreea_agent.VeryCoolAgent2",
+            "parameters": {"storage_dir": "agent_storage/VeryCoolAgent2"},
         },
         {
-            "class": "agents.conceder_agent.conceder_agent.ConcederAgent",
+            "class": "agents.andreea_agent_v3.andreea_agent.VeryCoolAgent3",
+            "parameters": {"storage_dir": "agent_storage/VeryCoolAgent3"},
         },
-        {
-            "class": "agents.hardliner_agent.hardliner_agent.HardlinerAgent",
-        },
-        {
-            "class": "agents.linear_agent.linear_agent.LinearAgent",
-        },
-        {
-            "class": "agents.random_agent.random_agent.RandomAgent",
-        },
-        {
-            "class": "agents.stupid_agent.stupid_agent.StupidAgent",
-        },
-        {
-            "class": "agents.CSE3210.agent2.agent2.Agent2",
-        },
+        # {
+        #     "class": "agents.boulware_agent.boulware_agent.BoulwareAgent",
+        # },
+        # {
+        #     "class": "agents.conceder_agent.conceder_agent.ConcederAgent",
+        # },
+        # {
+        #     "class": "agents.hardliner_agent.hardliner_agent.HardlinerAgent",
+        # },
+        # {
+        #     "class": "agents.linear_agent.linear_agent.LinearAgent",
+        # },
+        # {
+        #     "class": "agents.random_agent.random_agent.RandomAgent",
+        # },
+        # {
+        #     "class": "agents.stupid_agent.stupid_agent.StupidAgent",
+        # },
+        # {
+        #     "class": "agents.CSE3210.agent2.agent2.Agent2",
+        # },
         # {
         #     "class": "agents.CSE3210.agent3.agent3.Agent3",
         # },
