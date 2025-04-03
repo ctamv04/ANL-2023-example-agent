@@ -176,7 +176,7 @@ class VeryCoolAgent(DefaultParty):
             self.opponent_model.update(bid)
             # set bid as last received
             self.last_received_bid = bid
-            self.previous_utils_oponent_offered.append(float(self.opponent_model.get_predicted_utility(bid)))
+            self.previous_utils_oponent_offered.append(float(self.profile.getUtility(bid)))
             self.track_concessions(bid)  # Track opponent's concession behavior
             self.adjust_strategy()  # Adjust negotiation strategy based on progress
 
@@ -202,13 +202,14 @@ class VeryCoolAgent(DefaultParty):
         """This method is called when it is our turn. It should decide upon an action
         to perform and send this action to the opponent.
         """
+        bid = self.find_bid()
         # check if the last received offer is good enough
-        if self.accept_condition2(self.last_received_bid):
+        if self.accept_condition2(self.last_received_bid, bid):
             # if so, accept the offer
             action = Accept(self.me, self.last_received_bid)
         else:
             # if not, find a bid to propose as counter offer
-            bid = self.find_bid()
+            
             action = Offer(self.me, bid)
 
         # send the action
@@ -259,26 +260,32 @@ class VeryCoolAgent(DefaultParty):
 
         return False
     
-    def accept_condition2(self, bid: Bid) -> bool:
+    def accept_condition2(self, bid_recieved: Bid, bid_can_propose: Bid) -> bool:
         
-        if bid is None:
+        if bid_recieved is None or bid_can_propose is None:
             return False
         
         # progress of the negotiation session between 0 and 1 (1 is deadline)
         progress = self.progress.get(time() * 1000)
          
-        utility = float(self.profile.getUtility(bid))
-        utility_opponent = float(self.opponent_model.get_predicted_utility(bid))
+        utility_recieved = float(self.profile.getUtility(bid_recieved))
+        utility_proposed = float(self.profile.getUtility(bid_can_propose))
 
-        a = max(self.previous_utils_oponent_offered)
+        n = len(self.previous_utils_oponent_offered)
+        window_size = max(1, int((2 * progress - 1) * n))
+        center = int(progress * n)
+        start = max(0, center - window_size // 2)
+        end = min(n, start + window_size)
 
-        if progress > 0.8 and (self.AC_next(a, utility_opponent, utility) or (progress > 0.99 and utility_opponent >= a)):
+        a = statistics.mean(self.previous_utils_oponent_offered[start : end])
+
+        if self.AC_next(utility_recieved, utility_proposed) or (progress > 0.99 and utility_recieved >= a):
             return True
 
         return False
     
-    def AC_next(self, utility_opponent, utility) -> bool:
-        return utility_opponent >= utility
+    def AC_next(self, utility_recieved, utility_proposed) -> bool:
+        return utility_recieved >= utility_proposed
 
 
     def find_bid(self) -> Bid:
