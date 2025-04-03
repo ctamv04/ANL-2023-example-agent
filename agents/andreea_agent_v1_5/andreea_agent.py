@@ -55,7 +55,7 @@ class VeryCoolAgentV1_5(DefaultParty):
         self.opponent_model: OpponentModel = None
 
         self.strategy = "boulware"
-        self.opponent_concessions = dict()
+        self.opponent_concessions = []
 
         self.last_change_if_walk_away = dict()
 
@@ -186,13 +186,19 @@ class VeryCoolAgentV1_5(DefaultParty):
                     self.last_change_if_walk_away[self.other] = {"change": (self.profile.getUtility(ultimate) - self.profile.getUtility(panultimate)) / self.profile.getUtility(panultimate), "sample_size": 1}
                     
     def track_concessions(self, bid: Bid):
-        utility = float(self.profile.getUtility(bid))
+        # utility = float(self.profile.getUtility(bid))
 
-        if self.other in self.opponent_concessions:
-            if utility < self.opponent_concessions[self.other][-1]:
-                self.opponent_concessions[self.other].append(utility)
-        else:
-            self.opponent_concessions[self.other] = [utility]
+        # if self.other in self.opponent_concessions:
+        #     if utility < self.opponent_concessions[self.other][-1]:
+        #         self.opponent_concessions[self.other].append(utility)
+        # else:
+        #     self.opponent_concessions[self.other] = [utility]
+
+        utility = self.profile.getUtility(bid)
+        if self.opponent_concessions and utility < self.opponent_concessions[-1]:
+            self.opponent_concessions.append(utility)
+        elif not self.opponent_concessions:
+            self.opponent_concessions.append(utility)
 
     def adjust_strategy(self):
         progress = self.progress.get(time() * 1000)
@@ -220,7 +226,7 @@ class VeryCoolAgentV1_5(DefaultParty):
         self.send_action(action)
 
     def save_data(self):
-        data = {"historical_concessions": self.opponent_concessions, "last_change_if_walk_away": self.last_change_if_walk_away}
+        data = {"historical_concessions": [float(c) for c in self.opponent_concessions], "last_change_if_walk_away": self.last_change_if_walk_away}
         with open(f"{self.storage_dir}/data.md", "w") as f:
             json.dump(data, f)
 
@@ -228,9 +234,9 @@ class VeryCoolAgentV1_5(DefaultParty):
         try:
             with open(f"{self.storage_dir}/data.md", "r") as f:
                 data = json.load(f)
-                return data.get("historical_concessions", dict()), data.get("last_change_if_walk_away", dict())
+                return data.get("historical_concessions", []), data.get("last_change_if_walk_away", dict())
         except (FileNotFoundError, json.JSONDecodeError):
-            return dict(), dict()
+            return [], dict()
 
     ###########################################################################################
     ################################## Example methods below ##################################
