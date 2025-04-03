@@ -33,7 +33,7 @@ from tudelft_utilities_logging.ReportToLogger import ReportToLogger
 from .utils.opponent_model import OpponentModel
 
 
-class VeryCoolAgent(DefaultParty):
+class VeryCoolAgentV1_5(DefaultParty):
     """
     Template of a Python geniusweb agent.
     """
@@ -57,7 +57,7 @@ class VeryCoolAgent(DefaultParty):
         self.strategy = "boulware"
         self.opponent_concessions = dict()
 
-        self.last_change_if_walk_away = None
+        self.last_change_if_walk_away = dict()
 
         self.logger.log(logging.INFO, "party is initialized")
 
@@ -82,7 +82,7 @@ class VeryCoolAgent(DefaultParty):
             self.parameters = self.settings.getParameters()
             self.storage_dir = self.parameters.get("storage_dir")
 
-            self.opponent_concessions = self.load_data()
+            self.opponent_concessions, self.last_change_if_walk_away = self.load_data()
 
             # the profile contains the preferences of the agent over the domain
             profile_connection = ProfileConnectionFactory.create(
@@ -176,8 +176,15 @@ class VeryCoolAgent(DefaultParty):
             ultimate = self.opponent_model.offers[-1]
             panultimate = self.opponent_model.offers[-2]
             if ultimate and panultimate:
-                self.last_change_if_walk_away = (self.profile.getUtility(ultimate) - self.profile.getUtility(panultimate)) / self.profile.getUtility(panultimate)
 
+                if self.other in self.last_change_if_walk_away:
+                    self.last_change_if_walk_away[self.other]["change"] = (self.last_change_if_walk_away[self.other]["change"] * self.last_change_if_walk_away_sample_size[self.other]["sample_size"] \
+                                                                           + (self.profile.getUtility(ultimate) - self.profile.getUtility(panultimate)) / self.profile.getUtility(panultimate)) \
+                                                                            / (self.last_change_if_walk_away_sample_size[self.other]["sample_size"] + 1)
+                    self.last_change_if_walk_away_sample_size[self.other]["sample_size"] += 1
+                else:
+                    self.last_change_if_walk_away[self.other] = {"change": (self.profile.getUtility(ultimate) - self.profile.getUtility(panultimate)) / self.profile.getUtility(panultimate), "sample_size": 1}
+                    
     def track_concessions(self, bid: Bid):
         utility = float(self.profile.getUtility(bid))
 
@@ -213,7 +220,7 @@ class VeryCoolAgent(DefaultParty):
         self.send_action(action)
 
     def save_data(self):
-        data = {"historical_concessions": self.opponent_concessions}
+        data = {"historical_concessions": self.opponent_concessions, "last_change_if_walk_away": self.last_change_if_walk_away}
         with open(f"{self.storage_dir}/data.md", "w") as f:
             json.dump(data, f)
 
@@ -221,9 +228,9 @@ class VeryCoolAgent(DefaultParty):
         try:
             with open(f"{self.storage_dir}/data.md", "r") as f:
                 data = json.load(f)
-                return data.get("historical_concessions", dict())
+                return data.get("historical_concessions", dict()), data.get("last_change_if_walk_away", dict())
         except (FileNotFoundError, json.JSONDecodeError):
-            return dict()
+            return dict(), dict()
 
     ###########################################################################################
     ################################## Example methods below ##################################
@@ -232,6 +239,13 @@ class VeryCoolAgent(DefaultParty):
     def accept_condition(self, bid: Bid) -> bool:
         if bid is None:
             return False
+        
+        if self.other in self.last_change_if_walk_away:
+            ultimate = self.opponent_model.offers[-1]
+            panultimate = self.opponent_model.offers[-2]
+            if ultimate and panultimate:
+                if (self.profile.getUtility(ultimate) - self.profile.getUtility(panultimate)) / self.profile.getUtility(panultimate) <= self.last_change_if_walk_away[self.other]["change"] * 2:
+                    return True
 
         # progress of the negotiation session between 0 and 1 (1 is deadline)
         progress = self.progress.get(time() * 1000)

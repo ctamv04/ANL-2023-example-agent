@@ -216,12 +216,12 @@ class VeryCoolAgent2(DefaultParty):
 
     def save_data(self):
         data = {"historical_concessions": self.opponent_concessions}
-        with open(f"{self.storage_dir}/data.md", "w") as f:
+        with open(f"{self.storage_dir}/data2.md", "w") as f:
             json.dump(data, f)
 
     def load_data(self):
         try:
-            with open(f"{self.storage_dir}/data.md", "r") as f:
+            with open(f"{self.storage_dir}/data2.md", "r") as f:
                 data = json.load(f)
                 return data.get("historical_concessions", dict())
         except (FileNotFoundError, json.JSONDecodeError):

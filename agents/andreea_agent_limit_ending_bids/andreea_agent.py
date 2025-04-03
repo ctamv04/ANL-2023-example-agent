@@ -205,12 +205,12 @@ class VeryCoolAgentV4(DefaultParty):
 
     def save_data(self):
         data = {"historical_concessions": [float(c) for c in self.opponent_concessions]}
-        with open("data.json", "w") as f:
+        with open("data4.json", "w") as f:
             json.dump(data, f)
 
     def load_data(self):
         try:
-            with open("data.json", "r") as f:
+            with open("data4.json", "r") as f:
                 data = json.load(f)
                 return data.get("historical_concessions", [])
         except (FileNotFoundError, json.JSONDecodeError):
