@@ -268,16 +268,18 @@ class VeryCoolAgent(DefaultParty):
         # progress of the negotiation session between 0 and 1 (1 is deadline)
         progress = self.progress.get(time() * 1000)
          
+        # Get the utility of the next bid we can propose and the utility of the bid we got from the opponent
         utility_recieved = float(self.profile.getUtility(bid_recieved))
         utility_proposed = float(self.profile.getUtility(bid_can_propose))
 
+        # Get the for the parameter alpha based on the max / average of all the previouslly offered bids in the window
         n = len(self.previous_utils_oponent_offered)
         window_size = max(1, int((2 * progress - 1) * n))
         center = int(progress * n)
         start = max(0, center - window_size // 2)
         end = min(n, start + window_size)
 
-        a = statistics.mean(self.previous_utils_oponent_offered[start : end])
+        a = max(self.previous_utils_oponent_offered[start : end])
 
         if self.AC_next(utility_recieved, utility_proposed) or (progress > 0.99 and utility_recieved >= a):
             return True
