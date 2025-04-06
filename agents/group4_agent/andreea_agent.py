@@ -54,8 +54,11 @@ class OurFinalAgent(DefaultParty):
         self.last_received_bid: Bid = None
         self.opponent_model: OpponentModel = None
 
+        # Opponent modelling: Store for the current negotiation round the number of times the opponent agent has conceded, 
+        # which is in turn used to determine whether it's unyielding, and in that case, switch our acceptance strategy
         self.last_opponent_utility = None
         self.num_enemy_concessions = 0
+
         self.previous_utils_oponent_offered = []
 
         # Starting strategy is boulware:
@@ -202,6 +205,12 @@ class OurFinalAgent(DefaultParty):
                     self.last_change_if_walk_away[self.other] = {"change": (self.opponent_model.get_predicted_utility(ultimate) - self.opponent_model.get_predicted_utility(penultimate)) / self.opponent_model.get_predicted_utility(penultimate), "sample_size": 1}
                     
     def track_concessions(self, bid: Bid):
+        """Track the number of times the opponent makes a concession (that is, offers a bid which we deem as having less utility for the opponent than its previous bid) during the current negotiation round.
+
+        Args:
+            bid (Bid): Opponent bid to process
+        """
+
         utility = self.opponent_model.get_predicted_utility(bid)
         if self.last_opponent_utility and utility < self.last_opponent_utility:
             self.num_enemy_concessions += 1
