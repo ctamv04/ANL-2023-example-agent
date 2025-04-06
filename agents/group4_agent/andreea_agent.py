@@ -56,6 +56,7 @@ class OurFinalAgent(DefaultParty):
 
         self.last_opponent_utility = None
         self.num_enemy_concessions = 0
+        self.previous_utils_oponent_offered = []
 
         # Starting strategy is boulware:
         self.strategy = "boulware"
@@ -172,6 +173,8 @@ class OurFinalAgent(DefaultParty):
 
             # update opponent model with bid
             self.opponent_model.update(bid)
+            # Save utilities of recieved bids
+            self.previous_utils_oponent_offered.append(float(self.profile.getUtility(bid)))
             # set bid as last received
             self.last_received_bid = bid
             self.adjust_strategy()  # Adjust negotiation strategy based on progress
@@ -230,13 +233,13 @@ class OurFinalAgent(DefaultParty):
         """This method is called when it is our turn. It should decide upon an action
         to perform and send this action to the opponent.
         """
+        bid = self.find_bid()
         # check if the last received offer is good enough
         if self.accept_condition(self.last_received_bid):
             # if so, accept the offer
             action = Accept(self.me, self.last_received_bid)
         else:
             # if not, find a bid to propose as counter offer
-            bid = self.find_bid()
             action = Offer(self.me, bid)
 
         # send the action
@@ -290,6 +293,36 @@ class OurFinalAgent(DefaultParty):
 
         utility_threshold = 0.9 if self.strategy == "boulware" else 0.8 if self.strategy == "linear" else 0.7
         return self.profile.getUtility(bid) >= utility_threshold or progress > 0.99
+    
+    # Unused tested acceptance criterion
+    def accept_combination(self, bid_recieved: Bid, bid_can_propose: Bid) -> bool:
+        
+        if bid_recieved is None or bid_can_propose is None:
+            return False
+        
+        # progress of the negotiation session between 0 and 1 (1 is deadline)
+        progress = self.progress.get(time() * 1000)
+         
+        # Get the utility of the next bid we can propose and the utility of the bid we got from the opponent
+        utility_recieved = float(self.profile.getUtility(bid_recieved))
+        utility_proposed = float(self.profile.getUtility(bid_can_propose))
+
+        # Get the for the parameter alpha based on the max / average of all the previouslly offered bids in the window
+        n = len(self.previous_utils_oponent_offered)
+        window_size = max(1, int((2 * progress - 1) * n))
+        center = int(progress * n)
+        start = max(0, center - window_size // 2)
+        end = min(n, start + window_size)
+
+        a = max(self.previous_utils_oponent_offered[start : end])
+
+        if self.AC_next(utility_recieved, utility_proposed) or (progress > 0.99 and utility_recieved >= a):
+            return True
+
+        return False
+    
+    def AC_next(self, utility_recieved, utility_proposed) -> bool:
+        return utility_recieved >= utility_proposed
 
     def find_bid(self) -> Bid:
         """Finds the best bid with a Genetic Algorithm. 
