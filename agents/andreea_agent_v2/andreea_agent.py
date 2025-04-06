@@ -61,7 +61,6 @@ class VeryCoolAgent2(DefaultParty):
         self.previous_utils_oponent_offered = []
 
         self._best_bid = None
-        self._best_bid_num = None
 
         self.logger.log(logging.INFO, "party is initialized")
 
@@ -247,14 +246,13 @@ class VeryCoolAgent2(DefaultParty):
             if self._best_bid:
                 if social_welfare > self._best_bid:
                     self._best_bid = social_welfare
-                    self._best_bid_num = len(self.opponent_model.offers) + 1
             else:
                 self._best_bid = social_welfare
         
         if progress > 0.99 and utility > self._reservation_utility:
             return True
         elif progress > 0.8:
-            if utility > self._reservation_utility and social_welfare * (self._best_bid - self._reservation_utility) * (progress - 0.8):
+            if utility > self._reservation_utility and social_welfare > self._best_bid * (1 - ((progress - 0.8) * 5)):
                 return True
 
         return False

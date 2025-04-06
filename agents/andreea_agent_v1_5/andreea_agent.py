@@ -57,7 +57,7 @@ class VeryCoolAgentV1_5(DefaultParty):
         self.strategy = "boulware"
         self.opponent_concessions = []
 
-        # Opponent modelling: Store, for each opponent agent who has walked away from a negotiation, the average percentage change in opponent utility between their ultimate and penultimate bids, in percentage
+        # Opponent modelling: Store, for each opponent agent who has walked away from a negotiation, the average percentage change in opponent utility between their ultimate and penultimate bids
         self.last_change_if_walk_away = dict()
 
         self.logger.log(logging.INFO, "party is initialized")
