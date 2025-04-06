@@ -57,9 +57,11 @@ class OurFinalAgent(DefaultParty):
         self.last_opponent_utility = None
         self.num_enemy_concessions = 0
 
+        # Starting strategy is boulware:
         self.strategy = "boulware"
         
-        # Opponent modelling: Store, for each opponent agent who has walked away from a negotiation, the average percentage change in opponent utility between their ultimate and penultimate bids
+        # Opponent modelling: Store, for each opponent agent who has walked away from a negotiation, 
+        # the average percentage change in opponent utility between their ultimate and penultimate bids.
         self.last_change_if_walk_away = dict()
 
         self.logger.log(logging.INFO, "party is initialized")
@@ -172,7 +174,6 @@ class OurFinalAgent(DefaultParty):
             self.opponent_model.update(bid)
             # set bid as last received
             self.last_received_bid = bid
-            self.track_concessions(bid)  # Track opponent's concession behavior
             self.adjust_strategy()  # Adjust negotiation strategy based on progress
 
         # If the opponent has walked away from the negotiation
@@ -198,7 +199,6 @@ class OurFinalAgent(DefaultParty):
                     self.last_change_if_walk_away[self.other] = {"change": (self.opponent_model.get_predicted_utility(ultimate) - self.opponent_model.get_predicted_utility(penultimate)) / self.opponent_model.get_predicted_utility(penultimate), "sample_size": 1}
                     
     def track_concessions(self, bid: Bid):
-
         utility = self.opponent_model.get_predicted_utility(bid)
         if self.last_opponent_utility and utility < self.last_opponent_utility:
             self.num_enemy_concessions += 1
@@ -207,10 +207,18 @@ class OurFinalAgent(DefaultParty):
             self.last_opponent_utility = utility
 
     def adjust_strategy(self):
+        """Adjusts the negotiation strategy based on the progress of the negotiation and the opponent's behavior
+            The strategy can be conceder, boulware, or linear
+        """
+
+        # Calculate progress based on current time:
         progress = self.progress.get(time() * 1000)
 
+        # If the opponent made very few concessions, switch to conceder:
         if self.num_enemy_concessions / len(self.opponent_model.offers) < 0.15:
             self.strategy = "conceder"
+        
+        # Otherwise, choose strategy based on progress:
         elif progress < 0.3:
             self.strategy = "boulware"
         elif progress < 0.7:
@@ -251,10 +259,6 @@ class OurFinalAgent(DefaultParty):
         except (FileNotFoundError, json.JSONDecodeError):
             return [], dict()
 
-    ###########################################################################################
-    ################################## Example methods below ##################################
-    ###########################################################################################
-
     def accept_condition(self, bid: Bid) -> bool:
         """Either accept or reject the current bid offered by the opponent based on different heuristics
 
@@ -288,23 +292,44 @@ class OurFinalAgent(DefaultParty):
         return self.profile.getUtility(bid) >= utility_threshold or progress > 0.99
 
     def find_bid(self) -> Bid:
+        """Finds the best bid with a Genetic Algorithm. 
+        Generates a population of bids and evolves them over multiple generations through crossover and mutation,
+        selecting the best bid at the end.
+
+            1. Initializes a population of bids.
+            2. For 10 generations, the population is sorted based on bid quality, and the top half is kept.
+            3. Crossover between pairs of bids generates new bids. Mutations are applied randomly for diversity.
+            4. The best bid from the population is returned.
+
+        Returns:
+            Bid: The bid that is selected as the best, based on the score_bid method.
+        """
+        
         all_bids = AllBidsList(self.domain)
+
+        # Establish parameters for GA:
         population_size = 20
         generations = 10
         mutation_rate = 0.1
 
-        # Initialize population with more diverse bids
+        # Initialize population of bids:
         population = [all_bids.get(randint(0, all_bids.size() - 1)) for _ in range(population_size)]
         for _ in range(generations):
+
+            # Sort population based on bid score, descendingly:
             population = sorted(population, key=self.score_bid, reverse=True)
+
+            # Only keep the top half (the best half):
             new_population = population[:population_size // 2]
             
-            # Keep the population diverse with a better crossover and mutation strategy
+            # Generate new bids by crossover and mutation:
             while len(new_population) < population_size:
+                # Perform crossover between pairs of bids:
                 parent1, parent2 = random.sample(new_population, 2)
                 child = self.crossover(parent1, parent2)
+
+                # Do random mutations to increase diversity:
                 if random.random() < mutation_rate:
-                    # Mutate by adjusting values within a bid, not replacing it entirely
                     mutated_bid = self.mutate(child)
                     new_population.append(mutated_bid)
                 else:
@@ -314,18 +339,48 @@ class OurFinalAgent(DefaultParty):
         return max(population, key=self.score_bid)
     
     def crossover(self, bid1: Bid, bid2: Bid) -> Bid:
+        """Combines the values per issue of the two parents using uniform crossover
+
+        Args:
+            bid1 (Bid): One parent bid
+            bid2 (Bid): The other parent bid
+
+        Returns:    
+            Bid: the child bid
+        """
+
         values = bid1.getIssueValues().copy()
+
         for issue, value in bid2.getIssueValues().items():
-            if random.random() > 0.5:
+            if random.random() > 0.5: # uniform crossover, so a 50% chance
                 values[issue] = value
+
         return Bid(values)
 
     def mutate(self, bid: Bid) -> Bid:
-        # Mutate by randomly changing one of the issue values (not replacing the entire bid)
-        issue_to_mutate = random.choice(list(bid.getIssueValues().keys()))
-        new_value = bid.getIssueValues()[issue_to_mutate]  # Just a simple mutation strategy
-        bid.getIssueValues()[issue_to_mutate] = new_value
-        return bid
+        """Mutates a bid by randomly changing the value of one of its issues
+
+        Args:
+            bid (Bid): Bid to score
+
+        Returns:    
+            Bid: the mutated bid
+        """
+
+        issue_values = bid.getIssueValues().copy()
+
+        # Randomly select one of the issues in the bid to mutate:
+        issue_to_mutate = random.choice(list(issue_values.keys()))
+
+        values = self.domain.getValues(issue_to_mutate)
+
+        # Remove the value already in the bid from the list:
+        values = [v for v in values if v != issue_values[issue_to_mutate]]
+
+        # Randomly choose a new value for the selected issue:
+        issue_values[issue_to_mutate] = random.choice(values)
+
+        return Bid(issue_values)
 
     def score_bid(self, bid: Bid, alpha: float = 0.95, eps: float = 0.1) -> float:
         """Calculate heuristic score for a bid
@@ -350,7 +405,6 @@ class OurFinalAgent(DefaultParty):
         if self.opponent_model is not None:
             opponent_utility = self.opponent_model.get_predicted_utility(bid)
             alpha = 0.9 if self.strategy == "boulware" else 0.75 if self.strategy == "linear" else 0.6
-            opponent_score = alpha * our_utility + (1 - alpha) * opponent_utility
-            score = opponent_score
+            score = alpha * our_utility + (1 - alpha) * opponent_utility
 
         return score
