@@ -1,9 +1,6 @@
-from decimal import Decimal
 import logging
-import math
 from random import randint
 import random
-import statistics
 import sys
 from time import time
 from typing import cast
@@ -56,13 +53,10 @@ class OtherAgent1(DefaultParty):
 
         self.last_received_bid: Bid = None
         self.opponent_model: OpponentModel = None
-        self._reservation_utility = 0
-        self.strategy = "boulware"
-        self.opponent_concessions = dict()
-        self.previous_utils_oponent_offered = []
 
-        self._best_bid = None
-        self._best_bid_num = None
+        self.strategy = "boulware"
+        self.opponent_concessions = []
+        self.historical_concessions = self.load_data()
 
         self.sent_bids: list[Bid] = []
 
@@ -89,17 +83,11 @@ class OtherAgent1(DefaultParty):
             self.parameters = self.settings.getParameters()
             self.storage_dir = self.parameters.get("storage_dir")
 
-            self.opponent_concessions = self.load_data()
-
             # the profile contains the preferences of the agent over the domain
             profile_connection = ProfileConnectionFactory.create(
                 data.getProfile().getURI(), self.getReporter()
             )
             self.profile = profile_connection.getProfile()
-
-            if self.profile.getReservationBid():
-                self._reservation_utility = float(self.profile.getUtility(self.profile.getReservationBid()))
-
             self.domain = self.profile.getDomain()
             profile_connection.close()
 
@@ -179,18 +167,15 @@ class OtherAgent1(DefaultParty):
             self.opponent_model.update(bid)
             # set bid as last received
             self.last_received_bid = bid
-            self.previous_utils_oponent_offered.append(float(self.profile.getUtility(bid)))
             self.track_concessions(bid)  # Track opponent's concession behavior
             self.adjust_strategy()  # Adjust negotiation strategy based on progress
 
     def track_concessions(self, bid: Bid):
-        utility = float(self.profile.getUtility(bid))
-
-        if self.other in self.opponent_concessions:
-            if utility < self.opponent_concessions[self.other][-1]:
-                self.opponent_concessions[self.other].append(utility)
-        else:
-            self.opponent_concessions[self.other] = [utility]
+        utility = self.profile.getUtility(bid)
+        if self.opponent_concessions and utility < self.opponent_concessions[-1]:
+            self.opponent_concessions.append(utility)
+        elif not self.opponent_concessions:
+            self.opponent_concessions.append(utility)
 
     def adjust_strategy(self):
         progress = self.progress.get(time() * 1000)
@@ -205,13 +190,13 @@ class OtherAgent1(DefaultParty):
         """This method is called when it is our turn. It should decide upon an action
         to perform and send this action to the opponent.
         """
-        bid = self.find_bid()
         # check if the last received offer is good enough
-        if self.accept_condition2(self.last_received_bid, bid):
+        if self.accept_condition(self.last_received_bid):
             # if so, accept the offer
             action = Accept(self.me, self.last_received_bid)
         else:
             # if not, find a bid to propose as counter offer
+            bid = self.find_bid()
             self.sent_bids.append(bid)
             action = Offer(self.me, bid)
 
@@ -227,71 +212,23 @@ class OtherAgent1(DefaultParty):
         try:
             with open("data4.json", "r") as f:
                 data = json.load(f)
-                return data.get("historical_concessions", dict())
+                return data.get("historical_concessions", [])
         except (FileNotFoundError, json.JSONDecodeError):
-            return dict()
+            return []
 
     ###########################################################################################
     ################################## Example methods below ##################################
     ###########################################################################################
 
     def accept_condition(self, bid: Bid) -> bool:
-        
         if bid is None:
             return False
-        
+
         # progress of the negotiation session between 0 and 1 (1 is deadline)
         progress = self.progress.get(time() * 1000)
-         
-        utility = float(self.profile.getUtility(bid))
-        utility_opponent = float(self.opponent_model.get_predicted_utility(bid))
-        social_welfare = utility + utility_opponent
 
-        if progress < 0.8:
-            if self._best_bid:
-                if social_welfare > self._best_bid:
-                    self._best_bid = social_welfare
-                    self._best_bid_num = len(self.opponent_model.offers) + 1
-            else:
-                self._best_bid = social_welfare
-        
-        if progress > 0.99 and utility > self._reservation_utility:
-            return True
-        elif progress > 0.8:
-            if utility > self._reservation_utility and social_welfare * (self._best_bid - self._reservation_utility) * (progress - 0.8):
-                return True
-
-        return False
-    
-    def accept_condition2(self, bid_recieved: Bid, bid_can_propose: Bid) -> bool:
-        
-        if bid_recieved is None or bid_can_propose is None:
-            return False
-        
-        # progress of the negotiation session between 0 and 1 (1 is deadline)
-        progress = self.progress.get(time() * 1000)
-         
-        # Get the utility of the next bid we can propose and the utility of the bid we got from the opponent
-        utility_recieved = float(self.profile.getUtility(bid_recieved))
-        utility_proposed = float(self.profile.getUtility(bid_can_propose))
-
-        # Get the for the parameter alpha based on the max / average of all the previouslly offered bids in the window
-        n = len(self.previous_utils_oponent_offered)
-        window_size = max(1, int((2 * progress - 1) * n))
-        center = int(progress * n)
-        start = max(0, center - window_size // 2)
-        end = min(n, start + window_size)
-
-        a = max(self.previous_utils_oponent_offered[start : end])
-
-        if self.AC_next(utility_recieved, utility_proposed) or (progress > 0.99 and utility_recieved >= a):
-            return True
-
-        return False
-    
-    def AC_next(self, utility_recieved, utility_proposed) -> bool:
-        return utility_recieved >= utility_proposed
-
+        utility_threshold = 0.9 if self.strategy == "boulware" else 0.8 if self.strategy == "linear" else 0.7
+        return self.profile.getUtility(bid) >= utility_threshold or progress > 0.99
     
     def get_line(start: float, lowest: float) -> tuple[float, float]:
         x1, y1 = start, 20

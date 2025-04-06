@@ -18,8 +18,8 @@ if not RESULTS_DIR.exists():
 tournament_settings = {
     "agents": [
         {
-            "class": "agents.andreea_agent_v1_5.andreea_agent.VeryCoolAgentV1_5",
-            "parameters": {"storage_dir": "agent_storage/VeryCoolAgentV1_5"},
+            "class": "agents.group4_agent.andreea_agent.OurFinalAgent",
+            "parameters": {"storage_dir": "agent_storage/OurFinalAgent"},
         },
         {
             "class": "agents.ANL2022.agent007.agent007.Agent007",
