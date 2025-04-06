@@ -57,6 +57,7 @@ class VeryCoolAgentV1_5(DefaultParty):
         self.strategy = "boulware"
         self.opponent_concessions = []
 
+        # Opponent modelling: Store, for each opponent agent who has walked away from a negotiation, the average percentage change in opponent utility between their ultimate and penultimate bids, in percentage
         self.last_change_if_walk_away = dict()
 
         self.logger.log(logging.INFO, "party is initialized")
@@ -82,6 +83,7 @@ class VeryCoolAgentV1_5(DefaultParty):
             self.parameters = self.settings.getParameters()
             self.storage_dir = self.parameters.get("storage_dir")
 
+            # Opponent modelling: load data from past negotiations that will be used to adapt the current netgotiation strategy
             self.opponent_concessions, self.last_change_if_walk_away = self.load_data()
 
             # the profile contains the preferences of the agent over the domain
@@ -171,19 +173,27 @@ class VeryCoolAgentV1_5(DefaultParty):
             self.track_concessions(bid)  # Track opponent's concession behavior
             self.adjust_strategy()  # Adjust negotiation strategy based on progress
 
+        # If the opponent has walked away from the negotiation
         if isinstance(action, EndNegotiation):
 
-            ultimate = self.opponent_model.offers[-1]
-            panultimate = self.opponent_model.offers[-2]
-            if ultimate and panultimate:
+            if len(self.opponent_model.offers) > 1:
+
+                # Get the last 2 bids made by the opponent before walking away
+                ultimate = self.opponent_model.offers[-1]
+                penultimate = self.opponent_model.offers[-2]
 
                 if self.other in self.last_change_if_walk_away:
+
+                    # If this specific opponent agent has walked away from a negotiation in the past, update the average based on the percentage change in opponent utility between their ultimate and penultimate bids in this negotiation
                     self.last_change_if_walk_away[self.other]["change"] = (self.last_change_if_walk_away[self.other]["change"] * self.last_change_if_walk_away_sample_size[self.other]["sample_size"] \
-                                                                           + (self.profile.getUtility(ultimate) - self.profile.getUtility(panultimate)) / self.profile.getUtility(panultimate)) \
+                                                                           + (self.opponent_model.get_predicted_utility(ultimate) - self.opponent_model.get_predicted_utility(penultimate)) / self.opponent_model.get_predicted_utility(penultimate)) \
                                                                             / (self.last_change_if_walk_away_sample_size[self.other]["sample_size"] + 1)
+                    # Also update the number of times this opponent agent has walked away
                     self.last_change_if_walk_away_sample_size[self.other]["sample_size"] += 1
                 else:
-                    self.last_change_if_walk_away[self.other] = {"change": (self.profile.getUtility(ultimate) - self.profile.getUtility(panultimate)) / self.profile.getUtility(panultimate), "sample_size": 1}
+
+                    # If this specific opponent agent has never walked away from a negotiation before, initialize the value with the percentage change in opponent utility between their ultimate and penultimate bids in this negotiation
+                    self.last_change_if_walk_away[self.other] = {"change": (self.opponent_model.get_predicted_utility(ultimate) - self.opponent_model.get_predicted_utility(penultimate)) / self.opponent_model.get_predicted_utility(penultimate), "sample_size": 1}
                     
     def track_concessions(self, bid: Bid):
         # utility = float(self.profile.getUtility(bid))
@@ -226,11 +236,15 @@ class VeryCoolAgentV1_5(DefaultParty):
         self.send_action(action)
 
     def save_data(self):
+        """Persist the data used for opponent modelling and dynamic negotiation strategy adaptation into the file 'data.md'
+        """
         data = {"historical_concessions": [float(c) for c in self.opponent_concessions], "last_change_if_walk_away": self.last_change_if_walk_away}
         with open(f"{self.storage_dir}/data.md", "w") as f:
             json.dump(data, f)
 
     def load_data(self):
+        """Load the data from 'data.md' for opponent modelling and dynamic negotiation strategy adaptation
+        """
         try:
             with open(f"{self.storage_dir}/data.md", "r") as f:
                 data = json.load(f)
@@ -243,14 +257,29 @@ class VeryCoolAgentV1_5(DefaultParty):
     ###########################################################################################
 
     def accept_condition(self, bid: Bid) -> bool:
+        """Either accept or reject the current bid offered by the opponent based on different heuristics
+
+        Args:
+            bid (Bid): Bid to accept/reject
+
+        Returns:
+            bool: Acceptance/Rejection decision
+        """
         if bid is None:
             return False
         
+        # If this agent is known to walk away from negotiations
         if self.other in self.last_change_if_walk_away:
-            ultimate = self.opponent_model.offers[-1]
-            panultimate = self.opponent_model.offers[-2]
-            if ultimate and panultimate:
-                if (self.profile.getUtility(ultimate) - self.profile.getUtility(panultimate)) / self.profile.getUtility(panultimate) <= self.last_change_if_walk_away[self.other]["change"] * 2:
+
+            if len(self.opponent_model.offers) > 1:
+
+                # Get the last 2 bids from the opponent agent
+                ultimate = self.opponent_model.offers[-1]
+                penultimate = self.opponent_model.offers[-2]
+
+                # If the percentage change in opponent utility between their last 2 bids in the current negotiation is smaller than double the historical average percentage change in opponent utility between their ultimate and penultimate bids before
+                # walking away from a negotiation, then immediately accept the current bid to make sure to avoid the worst case scenario of another walk-away
+                if (self.opponent_model.get_predicted_utility(ultimate) - self.opponent_model.get_predicted_utility(penultimate)) / self.opponent_model.get_predicted_utility(penultimate) <= self.last_change_if_walk_away[self.other]["change"] * 2:
                     return True
 
         # progress of the negotiation session between 0 and 1 (1 is deadline)
