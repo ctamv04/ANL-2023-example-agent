@@ -33,7 +33,7 @@ from tudelft_utilities_logging.ReportToLogger import ReportToLogger
 from .utils.opponent_model import OpponentModel
 
 
-class VeryCoolAgentV4(DefaultParty):
+class OtherAgent1(DefaultParty):
     """
     Template of a Python geniusweb agent.
     """
